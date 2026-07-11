@@ -1,0 +1,12 @@
+# executable
+*.exe
+
+# VSCode
+.vscode/
+
+# temporary
+*.o
+*.obj
+
+#text
+*.txt
