@@ -1,36 +1,137 @@
 # Snake Game
 
-C++で制作したコンソール版へびゲームです。
+A console-based Snake game written in C++ for the Windows console.
 
-## 概要
+This project features a title screen, configurable game settings, score tracking, and restart functionality.
 
-同好会の活動として作成しました。
+---
 
-## 操作方法
+## Demo
 
-| キー | 動作 |
-| :--- | :--- |
-| `W` | 上移動 |
-| `A` | 左移動 |
-| `S` | 下移動 |
-| `D` | 右移動 |
 
-## 開発環境
+![Demo](images/demo.gif)
 
+
+---
+
+## Screenshots
+
+
+![Title Screen](images/title.png)
+
+![Settings](images/settings.png)
+
+![Gameplay](images/gameplay.png)
+
+
+---
+
+## Features
+
+- Console-based Snake Game
+- Title Screen
+- Settings Menu
+- Adjustable Field Size
+- Adjustable Game Speed
+- Reset Settings
+- Random Food Generation
+- Score Counter
+- Game Over Screen
+- Game Clear
+- Restart Function
+
+---
+
+## Gameplay
+
+- Control the snake using **W**, **A**, **S**, and **D**.
+- Eat food to increase your score and grow longer.
+- Avoid colliding with your own body.
+- Fill the entire field to clear the game.
+
+---
+
+## Controls
+
+### In Game
+
+| Key | Action |
+| :-- | :----- |
+| `W` | Move Up |
+| `A` | Move Left |
+| `S` | Move Down |
+| `D` | Move Right |
+
+### In Menus
+
+| Key | Action |
+| :-- | :----- |
+| `Tab` | Move Cursor |
+| `←` `→` | Change Setting Value |
+| `Enter` | Confirm |
+
+---
+
+## Settings
+
+| Item | Range | Default |
+| :--- | :---: | :---: |
+| Width | 20–60 | 40 |
+| Height | 10–30 | 20 |
+| Speed | 1–5 | 3 |
+
+---
+
+## Requirements
+
+- Windows
 - C++17
 - g++
-- Windows
 
-## 実行方法
+---
 
-### コンパイル
-
-```bash
-g++ main.cpp -o main.exe
-```
-
-### 実行
+## Build
 
 ```bash
-.\main.exe
+g++ main.cpp -std=c++17 -O2 -o snake.exe
 ```
+
+---
+
+## Run
+
+```bash
+.\snake.exe
+```
+
+---
+
+## Project Structure
+
+```
+Snake/
+├── README.md
+├── main.cpp
+├── images/
+│   ├── demo.gif
+│   ├── title.png
+│   ├── settings.png
+│   └── gameplay.png
+└── .gitignore
+```
+
+---
+
+## Future Improvements
+
+- Difficulty Presets
+- High Score Saving
+- Pause Function
+- Color Themes
+- Sound Effects
+
+---
+
+## License
+
+This project is released under the MIT License.
