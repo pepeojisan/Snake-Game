@@ -3,14 +3,21 @@
 #include <string>
 #include <random>
 #include <vector>
-#include <Windows.h>
-#include <conio.h>
 #include <chrono>
 #include <thread>
+#include <fstream>
+#include <sstream>
+#include <iomanip>
+#include <ctime>
+#include <algorithm>
+#include <filesystem>
+#include <Windows.h>
+#include <conio.h>
 
 
 using namespace std;
 using namespace std::chrono;
+using namespace std::filesystem;
 
 static const auto FAST_IO = []()
 {
@@ -33,12 +40,13 @@ int W = 40;
 const int dx[4] = {-1, 1, 0, 0};
 const int dy[4] = {0, 0, -1, 1};
 bool gameOver = false;
-const int TPS = 128;
+const int TPS = 120;
 const auto TICK = milliseconds(1000 / TPS);
-int flushTick = 7;
-pair<int, int> food;
+int flushTick;
+vector<pair<int, int>> foods;
 long long nowTick;
 int score;
+int F = 1;
 
 enum Dir {
     UP = 0,
@@ -60,27 +68,25 @@ class Snake {
     Dir dir = UP;
     deque<pair<int, int>> body = {{H / 2, W / 2}};
 
-    bool move(pair<int, int> food) {
+    bool move(vector<pair<int, int>>& foods) {
         int x = body.front().first + dx[dir]; x = (x + H) % H;
         int y = body.front().second + dy[dir]; y = (y + W) % W;
-        if(food == pair<int, int> {x, y}) {
-            body.push_front({x, y});
-            return true;
+        for(size_t i = 0; i < foods.size(); i++) {
+            if(foods[i] == pair<int, int> {x, y}) {
+                body.push_front({x, y});
+                foods.erase(foods.begin() + i);
+                return true;
+            }
         }
-        else {
-            body.push_front({x, y});
-            body.pop_back();
-            return false;
-        }
+        body.push_front({x, y});
+        body.pop_back();
+        return false;
     }
 };
 
-void genFood(deque<pair<int, int>> body, pair<int, int>& food) {
+void addFood(deque<pair<int, int>> body, vector<pair<int, int>>& foods, int F) {
+    pair<int, int> food;
     bool generated = false;
-    if(body.size() == H * W) {
-        generated = true;
-        food = {-1, -1};
-    }
     while(!generated) {
         food = {randInt(0, H - 1), randInt(0, W - 1)};
         generated = true;
@@ -93,7 +99,14 @@ void genFood(deque<pair<int, int>> body, pair<int, int>& food) {
             }
             body.pop_front();
         }
+        for(auto f : foods) {
+            if(food == f) {
+                generated = false;
+                break;
+            }
+        }
     }
+    foods.push_back(food);
 }
 
 bool gameOverJudgement(deque<pair<int, int>> body) {
@@ -106,18 +119,20 @@ bool gameOverJudgement(deque<pair<int, int>> body) {
     return false;
 }
 
-void mkDisplay(vector<vector<int>>& display, deque<pair<int, int>> body, pair<int, int> food) {
+void mkDisplay(vector<vector<int>>& display, deque<pair<int, int>> body, vector<pair<int, int>>& foods) {
     while(!body.empty()) {
         int x = body.front().first;
         int y = body.front().second;
         display[x][y] = 1;
         body.pop_front();
     }
-    if(food != pair<int, int> {-1, -1}) display[food.first][food.second] = 2;
+    for(auto food : foods) {
+        display[food.first][food.second] = 2;
+    }
 }
 
-void displayDisplay(vector<vector<int>>& display, int score, bool& gameOver) {
-    cout << "\033[2J\033[H";
+void displayDisplay(vector<vector<int>>& display, int score, bool& gameOver, Snake& snake) {
+    cout << "\033[2J\033[1;1H";
     cout << "┌";
     for(int i = 0; i < W; i++) {
         cout << "─";
@@ -129,7 +144,7 @@ void displayDisplay(vector<vector<int>>& display, int score, bool& gameOver) {
             if(gameOver && i == H / 2 && W / 2 - 5 <= j && j <= W / 2 + 4) {
                 cout << gameOverText[j - (W / 2 - 5)];
             }
-            else if(food == pair<int, int> {-1, -1} && i == H / 2 && W / 2 - 5 <= j && j <= W / 2 + 4) {
+            else if(snake.body.size() + foods.size() == H * W && i == H / 2 && W / 2 - 5 <= j && j <= W / 2 + 4) {
                 cout << gameClearText[j - (W / 2 - 5)];
                 gameOver = true;
             }
@@ -147,46 +162,45 @@ void displayDisplay(vector<vector<int>>& display, int score, bool& gameOver) {
     cout << flush;
 }
 
-enum Difficulty {
-    EASY = 0,
-    NORMAL,
-    HARD
-};
+
 
 class Settings {
     public :
 
-    Difficulty difficulty = NORMAL;
     int width = 40; //20~60
     int height = 20; //10~30
-    int speed = 3; //1~5
+    int speed = 2; //1~3
+    int foodSpawn = 1; //1~5
 
     void reset(void) {
-        difficulty = NORMAL;
         width = 40; 
         height = 20; 
-        speed = 3;
+        speed = 2;
+        foodSpawn = 1;
     }
 };
 
-void game(Settings settings) {
+void game(const Settings& settings) {
     H = settings.height;
     W = settings.width;
-    flushTick = 10 - settings.speed;
+    F = settings.foodSpawn;
+    flushTick = 6 - settings.speed;
     vector<vector<int>> display(H, vector<int>(W, 0)); //1 == body, 2 == food;
     Snake snake;
-    genFood(snake.body, food);
+    for(int i = 0; i < F; i++) {
+        addFood(snake.body, foods, F);
+    }
     while(!gameOver) {
         if(nowTick % flushTick == 0) {
-            if(snake.move(food)) {
+            if(snake.move(foods)) {
                 score++;
-                genFood(snake.body, food);
+                addFood(snake.body, foods, F);
             }
-            for(auto& r : display) fill(r.begin(), r.end(), 0);
-            mkDisplay(display, snake.body, food);
-            gameOver = gameOverJudgement(snake.body);
-            displayDisplay(display, score, gameOver);
         }
+        for(auto& r : display) fill(r.begin(), r.end(), 0);
+        mkDisplay(display, snake.body, foods);
+        gameOver = gameOverJudgement(snake.body);
+        displayDisplay(display, score, gameOver, snake);
         if(_kbhit()) {
             char c = _getch();
             if(c == 'w') {
@@ -218,12 +232,13 @@ void game(Settings settings) {
 enum TitleResult {
     START = 0,
     SETTINGS,
+    HIGHSCORES,
     EXIT
 };
 
 TitleResult titleScreen(void) {
 
-    cout << "\033[2J\033[H";
+    cout << "\033[2J\033[1;1H";
 
     cout << R"(
 
@@ -243,16 +258,20 @@ TitleResult titleScreen(void) {
     cout << "\033[10;1H";
     cout << (result == START ? "        > " : "          ") << "START\n";
     cout << (result == SETTINGS ? "        > " : "          ") << "SETTINGS\n";
+    cout << (result == HIGHSCORES ? "        > " : "          ") << "HIGH SCORES\n";
+    cout << '\n';
     cout << (result == EXIT ? "        > " : "          ") << "EXIT\n";
     cout << flush;
     while(true) {
         if(_kbhit()) {
             char c = _getch();
             if(c == '\t') {
-                result = TitleResult((result + 1) % 3);
+                result = TitleResult((result + 1) % 4);
                 cout << "\033[10;1H";
                 cout << (result == START ? "        > " : "          ") << "START\n";
                 cout << (result == SETTINGS ? "        > " : "          ") << "SETTINGS\n";
+                cout << (result == HIGHSCORES ? "        > " : "          ") << "HIGH SCORES\n";
+                cout << '\n';
                 cout << (result == EXIT ? "        > " : "          ") << "EXIT\n";
                 cout << flush;
             }
@@ -268,28 +287,31 @@ enum SettingsItem {
     WIDTH = 0,
     HEIGHT,
     SPEED,
+    FOODSPAWN,
     RESET,
     DONE
 };
 
 void SettingsScreen(Settings& settings) {
     SettingsItem item = WIDTH;
-    cout << "\033[2J\033[H";
+    cout << "\033[2J\033[1;1H";
 
     cout << "SETTINGS\n\n";
-    cout << (item == 0 ? "> " : "  ") << "Width      : " << settings.width << '\n';
-    cout << (item == 1 ? "> " : "  ") << "Height     : " << settings.height << '\n';
-    cout << (item == 2 ? "> " : "  ") << "Speed      : " << settings.speed << "\n\n";
-    cout << (item == 3 ? "> " : "  ") << "Reset\n\n";
-    cout << (item == 4 ? "> " : "  ") << "Done\n";
+    cout << (item == WIDTH ? "> " : "  ") << "Width       " << (settings.width > 20 ? "< " : "  ") << settings.width << (settings.width < 60 ? " >" : "  ") << '\n';
+    cout << (item == HEIGHT ? "> " : "  ") << "Height      " << (settings.height > 10 ? "< " : "  ") << settings.height << (settings.height < 30 ? " >" : "  ") << '\n';
+    cout << (item == SPEED ? "> " : "  ") << "Speed       " << (settings.speed > 1 ? "< " : "  ") << settings.speed << (settings.speed < 3 ? " >" : "  ") << '\n';
+    cout << (item == FOODSPAWN ? "> " : "  ") << "Food Spawn  " << (settings.foodSpawn > 1 ? "< " : "  ") << settings.foodSpawn << (settings.foodSpawn < 5 ? " >" : "  ") << '\n';
+    cout << '\n';
+    cout << (item == RESET ? "> " : "  ") << "Reset\n\n";
+    cout << (item == DONE ? "> " : "  ") << "Done\n";
     cout << flush;
 
     while(true) {
         if(_kbhit()) {
-            cout << "\033[2J\033[H";
+            cout << "\033[2J\033[1;1H";
             int c = _getch();
             if(c == 9) {
-                item = SettingsItem((item + 1) % 5);
+                item = SettingsItem((item + 1) % 6);
             }
             if(c == 13 && item == DONE) {
                 return;
@@ -311,8 +333,13 @@ void SettingsScreen(Settings& settings) {
                         }
                     }
                     else if(item == SPEED) {
-                        if(settings.speed < 5) {
+                        if(settings.speed < 3) {
                             settings.speed++;
+                        }
+                    }
+                    else if(item == FOODSPAWN) {
+                        if(settings.foodSpawn < 5) {
+                            settings.foodSpawn++;
                         }
                     }
                 }
@@ -332,14 +359,21 @@ void SettingsScreen(Settings& settings) {
                             settings.speed--;
                         }
                     }
+                    else if(item == FOODSPAWN) {
+                        if(settings.foodSpawn > 1) {
+                            settings.foodSpawn--;
+                        }
+                    }
                 }
             }
             cout << "SETTINGS\n\n";
-            cout << (item == 0 ? "> " : "  ") << "Width      : " << settings.width << '\n';
-            cout << (item == 1 ? "> " : "  ") << "Height     : " << settings.height << '\n';
-            cout << (item == 2 ? "> " : "  ") << "Speed      : " << settings.speed << "\n\n";
-            cout << (item == 3 ? "> " : "  ") << "Reset\n\n";
-            cout << (item == 4 ? "> " : "  ") << "Done\n";
+            cout << (item == WIDTH ? "> " : "  ") << "Width       " << (settings.width > 20 ? "< " : "  ") << settings.width << (settings.width < 60 ? " >" : "  ") << '\n';
+            cout << (item == HEIGHT ? "> " : "  ") << "Height      " << (settings.height > 10 ? "< " : "  ") << settings.height << (settings.height < 30 ? " >" : "  ") << '\n';
+            cout << (item == SPEED ? "> " : "  ") << "Speed       " << (settings.speed > 1 ? "< " : "  ") << settings.speed << (settings.speed < 3 ? " >" : "  ") << '\n';
+            cout << (item == FOODSPAWN ? "> " : "  ") << "Food Spawn  " << (settings.foodSpawn > 1 ? "< " : "  ") << settings.foodSpawn << (settings.foodSpawn < 5 ? " >" : "  ") << '\n';
+            cout << '\n';
+            cout << (item == RESET ? "> " : "  ") << "Reset\n\n";
+            cout << (item == DONE ? "> " : "  ") << "Done\n";
             cout << flush;
         }
         this_thread::sleep_for(TICK);
@@ -348,6 +382,7 @@ void SettingsScreen(Settings& settings) {
 
 enum Restart {
     RESTART = 0,
+    SAVESCORE,
     TITLE
 };
 
@@ -357,6 +392,7 @@ Restart gameEndedScreen(Settings settings) {
     cout << '\n';
     cout << "\033[" << H + 4 << ";1H";
     cout << (restart == RESTART ? "> " : "  ") << "RESTART\n";
+    cout << (restart == SAVESCORE ? "> " : "  ") << "SAVE SCORE\n";
     cout << (restart == TITLE ? "> " : "  ") << "TITLE\n";
     cout << flush;
     while(true) {
@@ -364,9 +400,9 @@ Restart gameEndedScreen(Settings settings) {
             cout << "\033[" << H + 4 << ";1H";
             char c = _getch();
             if(c == '\t') {
-                if(restart == TITLE) restart = RESTART;
-                else restart = TITLE;
+                restart = Restart((restart + 1) % 3);
                 cout << (restart == RESTART ? "> " : "  ") << "RESTART\n";
+                cout << (restart == SAVESCORE ? "> " : "  ") << "SAVE SCORE\n";
                 cout << (restart == TITLE ? "> " : "  ") << "TITLE\n";
                 cout << flush;
             }
@@ -377,6 +413,50 @@ Restart gameEndedScreen(Settings settings) {
         this_thread::sleep_for(TICK);
     }
 }
+
+struct Record {
+    string name;
+    int score;
+    string datetime;
+};
+
+string nowTime() {
+    time_t t = time(nullptr);
+    tm local;
+    localtime_s(&local, &t);
+    stringstream ss;
+    ss << put_time(&local, "%Y-%m-%d %H:%M:%S");
+    return ss.str();
+}
+
+void saveRecord(const string& name, int score) {
+    create_directories("history");
+    ofstream("history/history.txt", ios::app);
+    ofstream fout("history/history.txt", ios::app);
+    fout << name << "," << score << "," << nowTime() << '\n';
+}
+
+vector<Record> loadRecord() {
+    vector<Record> records;
+    ifstream fin("history/history.txt");
+    string line;
+    while(getline(fin, line)) {
+        stringstream ss(line);
+        Record r;
+        getline(ss, r.name, ',');
+        string score;
+        getline(ss, score, ',');
+        getline(ss, r.datetime);
+        r.score = stoi(score);
+        records.push_back(r);
+    }
+    sort(records.begin(), records.end(), [](const Record& a, const Record& b) {
+            return a.score > b.score;
+        });
+    return records;
+}
+
+
 
 int main() {
 
@@ -399,9 +479,73 @@ int main() {
             gameOver = false;
             score = 0;
             nowTick = 0;
+            foods.clear();
             game(settings);
-            if(gameEndedScreen(settings) == RESTART) restart = true;
+            Restart endedResult = gameEndedScreen(settings);
+            if(endedResult == RESTART) restart = true;
             else restart = false;
+            if(endedResult == SAVESCORE) {
+                cout << "\033[" << H + 4 << ";1H";
+                cout << "NAME (10 chars max)\n                    \n> __________";
+                cout << flush;
+                string name;
+                while(true){
+                    if(_kbhit()) {
+                        int c = _getch();
+                        if(c == '\r') break;
+                        if(c == '\b'){
+                            if(!name.empty())
+                                name.pop_back();
+                        }
+                        else if(isprint(c) && name.size() < 10){
+                            name.push_back(c);
+                        }
+                        cout << "\033[" << H + 4 << ";1H";
+                        cout << "NAME (10 chars max)\n\n> ";
+                        cout << name;
+                        for(int i = 0; i < 10 - name.size(); i++) cout << '_';
+                        cout << "\n\n";
+                        cout << flush;
+                    }
+                    this_thread::sleep_for(TICK);
+                }
+                saveRecord(name, score);
+                cout << "Saved!\n\nPress Enter to Continue...";
+                cout << flush;
+                while(true) {
+                    if(_kbhit()) {
+                        if(_getch() == '\r') {
+                            break;
+                        }
+                    }
+                    this_thread::sleep_for(TICK);
+                }
+            }
+        }
+        else if(r == HIGHSCORES) {
+            vector<Record> records = loadRecord();
+            cout << "\033[2J\033[1;1H";
+            cout << "HISTORY\n\n RANK  NAME        SCORE  DATE\n\n";
+            for(size_t i = 0; i < records.size() && i < 30; i++) {
+                cout << left << ' ' << setw(4) << i + 1 << "  ";
+                cout << setw(10) << records[i].name;
+                cout << "  ";
+                cout << setw(5) << records[i].score;
+                cout << "  ";
+                cout << records[i].datetime;
+                cout << '\n';
+            }
+            cout << '\n';
+            cout << "Press Enter to Close\n";
+            cout << flush;
+            while(true) {
+                if(_kbhit()) {
+                    if(_getch() == '\r') {
+                        break;
+                    }
+                }
+                this_thread::sleep_for(TICK);
+            }
         }
         else if(r == EXIT) {
             cout << "\nAre You Sure to Exit ?\n\n";
@@ -411,17 +555,16 @@ int main() {
                 cout << flush;
                 char c;
                 cin >> c;
-                if(c == 'Y' || c == 'y') return 0;
+                if(c == 'Y' || c == 'y') {
+                    cout << '\n';
+                    return 0;
+                }
                 else if(c == 'n') break;
                 this_thread::sleep_for(TICK);
             }
-
         }
-
-
-        
         this_thread::sleep_for(TICK);
     }
-    
 }
+
 
